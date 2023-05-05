@@ -56,6 +56,12 @@ public class User {
   private double amountToTransfer;
 
   @Setter @Getter
+  private double amountToTransferCryptoEth;
+
+  @Setter @Getter
+  private double amountToTransferCryptoSol;
+
+  @Setter @Getter
   private String transferRecipientID;
 
   @Setter @Getter
@@ -63,6 +69,8 @@ public class User {
 
   @Setter @Getter
   private String transferHist;
+
+
 
   //// Crypto Fields ////
 

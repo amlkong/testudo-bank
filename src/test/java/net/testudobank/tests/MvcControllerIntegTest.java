@@ -977,6 +977,8 @@ public class MvcControllerIntegTest {
     CUSTOMER1.setPassword(CUSTOMER1_PASSWORD);
     CUSTOMER1.setTransferRecipientID(CUSTOMER2_ID);
     CUSTOMER1.setAmountToTransfer(TRANSFER_AMOUNT);
+    CUSTOMER1.setAmountToTransferCryptoEth(0);
+    CUSTOMER1.setAmountToTransferCryptoSol(0);
     
     //Send the transfer request.
     String returnedPage = controller.submitTransfer(CUSTOMER1);
@@ -1033,6 +1035,8 @@ public class MvcControllerIntegTest {
 
     CUSTOMER1.setTransferRecipientID(CUSTOMER2_ID);
     CUSTOMER1.setAmountToTransfer(TRANSFER_AMOUNT);
+    CUSTOMER1.setAmountToTransferCryptoEth(0);
+    CUSTOMER1.setAmountToTransferCryptoSol(0);
 
     //Send the transfer request.
     String returnedPage = controller.submitTransfer(CUSTOMER1);
@@ -1091,6 +1095,8 @@ public void testTransferPaysOverdraftAndDepositsRemainder() throws SQLException,
 
     CUSTOMER1.setTransferRecipientID(CUSTOMER2_ID);
     CUSTOMER1.setAmountToTransfer(TRANSFER_AMOUNT);
+    CUSTOMER1.setAmountToTransferCryptoEth(0);
+    CUSTOMER1.setAmountToTransferCryptoSol(0);
 
     //Send the transfer request.
     String returnedPage = controller.submitTransfer(CUSTOMER1);
@@ -1582,4 +1588,59 @@ public void testTransferPaysOverdraftAndDepositsRemainder() throws SQLException,
     cryptoTransactionTester.test(cryptoTransaction);
   }
 
+
+
+ /**
+   * This test verifies that a transfer crypto case where the $ balances of both customers do not change
+   * This would be a part 1 of the cryp transfer test feature where the code base should be refactored for
+   * crypto transactions to be more user parameter friendly
+   * 
+   * @throws SQLException
+   */
+  @Test
+  public void testTransferCrypto() throws SQLException, ScriptException { 
+
+    //Initialize customer1 with a balance of $1000. Balance will be represented as pennies in DB.
+    double CUSTOMER1_BALANCE = 1000;
+    int CUSTOMER1_BALANCE_IN_PENNIES = MvcControllerIntegTestHelpers.convertDollarsToPennies(CUSTOMER1_BALANCE);
+    MvcControllerIntegTestHelpers.addCustomerToDB(dbDelegate, CUSTOMER1_ID, CUSTOMER1_PASSWORD, CUSTOMER1_FIRST_NAME, CUSTOMER1_LAST_NAME, CUSTOMER1_BALANCE_IN_PENNIES, 0);
+
+    //Initialize customer2 with a balance of $500. Balance will be represented as pennies in DB. 
+    double CUSTOMER2_BALANCE = 500;
+    int CUSTOMER2_BALANCE_IN_PENNIES = MvcControllerIntegTestHelpers.convertDollarsToPennies(CUSTOMER2_BALANCE);
+    MvcControllerIntegTestHelpers.addCustomerToDB(dbDelegate, CUSTOMER2_ID, CUSTOMER2_PASSWORD, CUSTOMER2_FIRST_NAME, CUSTOMER2_LAST_NAME, CUSTOMER2_BALANCE_IN_PENNIES, 0);
+
+    //Initializing users for the transfer
+    User CUSTOMER1 = new User();
+    CUSTOMER1.setUsername(CUSTOMER1_ID);
+    CUSTOMER1.setPassword(CUSTOMER1_PASSWORD);
+    CUSTOMER1.setTransferRecipientID(CUSTOMER2_ID);
+    CUSTOMER1.setAmountToTransfer(0);
+    CUSTOMER1.setAmountToTransferCryptoEth(0);
+    CUSTOMER1.setAmountToTransferCryptoSol(0);
+    
+    //Send the transfer request.
+    String returnedPage = controller.submitTransfer(CUSTOMER1);
+    
+    //Fetch customer1 & customer2's data from DB
+    List<Map<String, Object>> customer1SqlResult = jdbcTemplate.queryForList(String.format("SELECT * FROM Customers WHERE CustomerID='%s';", CUSTOMER1_ID));
+    Map<String, Object> customer1Data = customer1SqlResult.get(0);
+
+    List<Map<String, Object>> customer2SqlResult = jdbcTemplate.queryForList(String.format("SELECT * FROM Customers WHERE CustomerID='%s';", CUSTOMER2_ID));
+    Map<String, Object> customer2Data = customer2SqlResult.get(0);
+   
+    // TODO Design a better way to test Crypto transaction through User parameters
+
+    //Verify that customer1's dollar balance has not changed
+    assertEquals((CUSTOMER1_BALANCE_IN_PENNIES), (int)customer1Data.get("Balance"));
+
+    //Verify that customer2's dollar balance has not changed
+    assertEquals((CUSTOMER2_BALANCE_IN_PENNIES), (int)customer2Data.get("Balance"));
+
+    //Check that transfer request goes through.
+    assertEquals("account_info", returnedPage);
+  }
+
+
 }
+
