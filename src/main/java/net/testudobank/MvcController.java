@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.python.antlr.PythonParser.lambdef_return;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @Controller
@@ -604,23 +605,104 @@ public class MvcController {
     double transferAmount = sender.getAmountToTransfer();
     int transferAmountInPennies = convertDollarsToPennies(transferAmount);
 
+    // initialize variables for crypto transfer amount
+    double transferAmountCryptoEth = sender.getAmountToTransferCryptoEth();
+
+    double transferAmountCryptoSol = sender.getAmountToTransferCryptoSol();
+
     // negative transfer amount is not allowed
-    if (transferAmount < 0) {
+    if (transferAmount < 0 || transferAmountCryptoEth < 0 || transferAmountCryptoSol < 0) {
       return "welcome";
     } 
+
+    // check if the user does not have any crypto to transfer | Checking for ETH and SOL
+    Optional<Double> cryptoBalanceEth = TestudoBankRepository.getCustomerCryptoBalance(jdbcTemplate, senderUserID, "ETH");
+    if (transferAmountCryptoEth != 0 && !cryptoBalanceEth.isPresent()){
+      return "welcome";
+    }
+
+    Optional<Double> cryptoBalanceSol = TestudoBankRepository.getCustomerCryptoBalance(jdbcTemplate, senderUserID, "SOL");
+    if (transferAmountCryptoSol != 0 && !cryptoBalanceSol.isPresent()){
+      return "welcome";
+    }
+
+    // check if user has enough crypto to transfer
+    if (transferAmountCryptoEth != 0 && cryptoBalanceEth.get() < transferAmountCryptoEth){
+      return "welcome";
+    }
+
+    if (transferAmountCryptoSol != 0 && cryptoBalanceSol.get() < transferAmountCryptoSol){
+      return "welcome";
+    }
   
     String currentTime = SQL_DATETIME_FORMATTER.format(new java.util.Date()); // use same timestamp for all logs created by this transfer
-
+    
     // withdraw transfer amount from sender and deposit into recipient's account
-    sender.setAmountToWithdraw(transferAmount);
-    submitWithdraw(sender);
+    if (transferAmount > 0){
+      sender.setAmountToWithdraw(transferAmount);
+      submitWithdraw(sender);
+  
+      recipient.setAmountToDeposit(transferAmount);
+      submitDeposit(recipient);
 
-    recipient.setAmountToDeposit(transferAmount);
-    submitDeposit(recipient);
+      // Inserting transfer into transfer history for both customers
+      TestudoBankRepository.insertRowToTransferLogsTable(jdbcTemplate, senderUserID, recipientUserID, currentTime, transferAmountInPennies);
+      updateAccountInfo(sender);
+    }
 
-    // Inserting transfer into transfer history for both customers
-    TestudoBankRepository.insertRowToTransferLogsTable(jdbcTemplate, senderUserID, recipientUserID, currentTime, transferAmountInPennies);
-    updateAccountInfo(sender);
+    // withdraw crypto transfer ETH amount from sender and deposit into recipient's account
+    if (transferAmountCryptoEth > 0){
+    
+      sender.setAmountToWithdraw(transferAmountCryptoEth);
+      submitWithdraw(sender);
+      sender.setCryptoTransaction(true);
+
+      recipient.setAmountToDeposit(transferAmountCryptoEth);
+      submitDeposit(recipient);
+      recipient.setCryptoTransaction(true);
+
+      // create an entry in CryptoHoldings table if customer is buying this Crypto for the first time.
+      if (!TestudoBankRepository.getCustomerCryptoBalance(jdbcTemplate, recipientUserID, "ETH").isPresent()) {
+        TestudoBankRepository.initCustomerCryptoBalance(jdbcTemplate, recipientUserID, "ETH");
+      }
+
+       // Inserting transfer into Crypto ETH transfer history for both customers 
+      TestudoBankRepository.decreaseCustomerCryptoBalance(jdbcTemplate, senderUserID, "ETH", transferAmountCryptoEth);
+      TestudoBankRepository.insertRowToCryptoLogsTable(jdbcTemplate, senderUserID, "ETH", CRYPTO_HISTORY_SELL_ACTION, currentTime, transferAmountCryptoEth);
+      updateAccountInfo(sender);
+
+      TestudoBankRepository.increaseCustomerCryptoBalance(jdbcTemplate, recipientUserID, "ETH", transferAmountCryptoEth);
+      TestudoBankRepository.insertRowToCryptoLogsTable(jdbcTemplate, recipientUserID, "ETH", CRYPTO_HISTORY_BUY_ACTION, currentTime, transferAmountCryptoEth);
+      updateAccountInfo(recipient);
+    }
+   
+    // withdraw crypto transfer SOL amount from sender and deposit into recipient's account
+    if (transferAmountCryptoSol > 0){
+ 
+      sender.setAmountToWithdraw(transferAmountCryptoSol);
+      submitWithdraw(sender);
+      sender.setCryptoTransaction(true);
+
+      recipient.setAmountToDeposit(transferAmountCryptoSol);
+      submitDeposit(recipient);
+      recipient.setCryptoTransaction(true);
+
+
+      // create an entry in CryptoHoldings table if customer is buying this Crypto for the first time.
+      if (!TestudoBankRepository.getCustomerCryptoBalance(jdbcTemplate, recipientUserID, "SOL").isPresent()) {
+        TestudoBankRepository.initCustomerCryptoBalance(jdbcTemplate, recipientUserID, "SOL");
+      }
+
+      // Inserting transfer into Crypto SOL transfer history for both customers 
+      TestudoBankRepository.decreaseCustomerCryptoBalance(jdbcTemplate, senderUserID, "SOL", transferAmountCryptoSol);
+      TestudoBankRepository.insertRowToCryptoLogsTable(jdbcTemplate, senderUserID, "SOL", CRYPTO_HISTORY_SELL_ACTION, currentTime, transferAmountCryptoSol);
+      updateAccountInfo(sender);
+  
+      TestudoBankRepository.increaseCustomerCryptoBalance(jdbcTemplate, recipientUserID, "SOL", transferAmountCryptoSol);
+      TestudoBankRepository.insertRowToCryptoLogsTable(jdbcTemplate, recipientUserID, "SOL", CRYPTO_HISTORY_BUY_ACTION, currentTime, transferAmountCryptoSol);
+      updateAccountInfo(recipient);
+   
+    }
 
     return "account_info";
   }

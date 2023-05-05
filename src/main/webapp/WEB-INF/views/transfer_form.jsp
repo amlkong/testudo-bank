@@ -47,6 +47,12 @@
 
       <form:label path="amountToTransfer">Amount to Transfer ($):</form:label>
 			<form:input path="amountToTransfer"/><br/>	
+
+      <form:label path="amountToTransferCryptoEth">Amount to Transfer Crypto (ETH):</form:label>
+			<form:input path="amountToTransferCryptoEth"/><br/>	
+
+      <form:label path="amountToTransferCryptoSol">Amount to Transfer Crypto (SOL):</form:label>
+			<form:input path="amountToTransferCryptoSol"/><br/>	
 				
 			<form:button>Transfer</form:button>
 		</form:form>
